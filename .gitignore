@@ -90,3 +90,4 @@ temp/
 
 # OS generated files
 Thumbs.db
+.vercel
