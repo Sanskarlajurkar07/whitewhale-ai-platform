@@ -21,6 +21,9 @@ const corsOptions = {
     'https://white-whale-ai-frontend-b2rl.vercel.app',
     /\.vercel\.app$/, // Allow all Vercel preview deployments
     
+    // Your production frontend (update when you know the URL)
+    // 'https://your-frontend-domain.vercel.app',
+    
     // Netlify deployments
     /\.netlify\.app$/,
     

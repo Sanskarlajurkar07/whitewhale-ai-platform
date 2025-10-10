@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: whitewhale-ai-backend
+    name: whitewhale_ai_backend
     env: node
     plan: free
     buildCommand: npm install
