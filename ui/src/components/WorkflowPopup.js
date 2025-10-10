@@ -62,7 +62,7 @@ export const WorkflowPopup = ({ isOpen, onClose, nodes, edges }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [outputs, setOutputs] = useState({});
-  const [inputs, setInputs] = useState({});
+  const [inputs] = useState({});
 
   const handleRun = async () => {
     setIsRunning(true);
