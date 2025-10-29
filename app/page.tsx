@@ -1,7 +1,10 @@
 "use client"
 
-import  from "../ui/src/index"
+import dynamic from "next/dynamic"
 
-export default function SyntheticV0PageForDeployment() {
-  return < />
+// Dynamically import the App component to avoid SSR issues
+const App = dynamic(() => import("@/ui/src/App"), { ssr: false })
+
+export default function Page() {
+  return <App />
 }
