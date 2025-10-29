@@ -96,23 +96,23 @@ The backend provides pipeline validation and processing:
 
 ### Frontend
 
-```bash
+\`\`\`bash
 cd frontend
 npm install
 npm start
-```
+\`\`\`
 
 ### Backend
 
-```bash
+\`\`\`bash
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload
-```
+\`\`\`
 
 ### Backend Tests
 
-```bash
+\`\`\`bash
 cd backend tests
 pytest
-```
+\`\`\`
