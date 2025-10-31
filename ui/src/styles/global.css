@@ -1,3 +1,14 @@
+:root {
+  --color-primary: #3498db;
+  --color-primary-dark: #2980b9;
+  --color-secondary: #2ecc71;
+  --color-accent: #e74c3c;
+  --color-warning: #f39c12;
+  --color-info: #3498db;
+  --color-success: #27ae60;
+  --color-danger: #c0392b;
+}
+
 :root[data-theme="light"] {
   --bg-color: #f5f7fa;
   --text-color: #2c3e50;

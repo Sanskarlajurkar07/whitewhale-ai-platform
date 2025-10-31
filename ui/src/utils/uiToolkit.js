@@ -5,6 +5,7 @@
 import {useState, useRef, useCallback} from "react";
 import ReactFlow, {Controls, Background, MiniMap} from "reactflow";
 import {useStore} from "../state/store";
+import {shallow} from "zustand/shallow";
 import {InputNode} from "../components/nodes/inputNode";
 import {LLMNode} from "../components/nodes/llmNode";
 import {OutputNode} from "../components/nodes/outputNode";
@@ -35,7 +36,7 @@ export const PipelineUI = () => {
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   
-  // Get store values and actions
+  // Use memo to cache store selectors
   const nodes = useStore((state) => state.nodes);
   const edges = useStore((state) => state.edges);
   const onNodesChange = useStore((state) => state.onNodesChange);
@@ -46,7 +47,12 @@ export const PipelineUI = () => {
   const handleRemoveNode = useStore((state) => state.removeNode);
 
   const getInitNodeData = useCallback((nodeID, type) => {
-    return { id: nodeID, nodeType: `${type}` };
+    return {
+      id: nodeID,
+      nodeType: type,
+      label: `${type} Node`,
+      data: {} // Initialize with empty data object
+    };
   }, []);
 
   const onDrop = useCallback(
@@ -64,10 +70,12 @@ export const PipelineUI = () => {
 
         if (!type) return;
 
-        const position = reactFlowInstance.project({
+        const position = reactFlowInstance?.project({
           x: event.clientX - reactFlowBounds.left,
           y: event.clientY - reactFlowBounds.top,
         });
+
+        if (!position) return;
 
         const nodeID = getNodeID(type);
         const newNode = {

@@ -1,14 +1,31 @@
 // server.js - Express Backend with Google Gemini API Integration
+// Enhanced with security, validation, caching, and structured logging
 
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables
 dotenv.config();
 
+// Utilities and middleware
+const { validateEnv } = require('./utils/validateEnv');
+const logger = require('./utils/logger');
+const {
+  validateWorkflowExecution,
+  validatePipelineParse,
+  handleValidationErrors,
+  validateWithJoi,
+  workflowSchema
+} = require('./middleware/validation');
+
+// Validate environment variables
+const env = validateEnv();
+
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = env.PORT || 8000;
 
 // CORS Configuration - FLEXIBLE FOR MULTIPLE DEPLOYMENTS
 const corsOptions = {
@@ -41,17 +58,82 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for API-only server
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
+  max: env.RATE_LIMIT_MAX_REQUESTS || 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limit for workflow execution
+const workflowLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // 10 workflow executions per minute
+  message: {
+    success: false,
+    error: 'Too many workflow executions. Please wait before trying again.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/run-workflow', workflowLimiter);
+app.use(limiter);
+
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Limit payload size
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Add logging middleware to debug requests
+// Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  console.log('Origin:', req.headers.origin);
+  const startTime = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    logger.logRequest(req, duration);
+  });
+  
   next();
 });
+
+// Simple in-memory cache for API responses
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCacheKey(data) {
+  return JSON.stringify(data);
+}
+
+function getFromCache(key) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() });
+  
+  // Clear old cache entries periodically
+  if (cache.size > 1000) {
+    const oldestKeys = Array.from(cache.keys()).slice(0, 500);
+    oldestKeys.forEach(k => cache.delete(k));
+  }
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -74,37 +156,57 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Pipeline parse endpoint (existing)
-app.post('/pipelines/parse', (req, res) => {
-  try {
-    const pipelineData = JSON.parse(req.body.pipeline);
-    const { nodes, edges } = pipelineData;
+// Pipeline parse endpoint with validation
+app.post('/pipelines/parse',
+  validatePipelineParse,
+  handleValidationErrors,
+  (req, res) => {
+    try {
+      const pipelineData = JSON.parse(req.body.pipeline);
+      const { nodes, edges } = pipelineData;
 
-    // Check if it's a DAG (Directed Acyclic Graph)
-    const isDAG = checkIfDAG(nodes, edges);
+      // Validate nodes and edges exist
+      if (!nodes || !Array.isArray(nodes)) {
+        throw new Error('Invalid nodes data');
+      }
 
-    res.json({
-      num_nodes: nodes.length,
-      num_edges: edges.length,
-      is_dag: isDAG,
-      success: true
-    });
-  } catch (error) {
-    res.status(400).json({
-      error: error.message,
-      success: false
-    });
+      // Check if it's a DAG (Directed Acyclic Graph)
+      const isDAG = checkIfDAG(nodes, edges || []);
+
+      logger.info('Pipeline parsed', {
+        numNodes: nodes.length,
+        numEdges: edges?.length || 0,
+        isDAG
+      });
+
+      res.json({
+        num_nodes: nodes.length,
+        num_edges: edges?.length || 0,
+        is_dag: isDAG,
+        success: true
+      });
+    } catch (error) {
+      logger.error('Pipeline parse error', { error: error.message });
+      res.status(400).json({
+        error: error.message,
+        success: false
+      });
+    }
   }
-});
+);
 
-// Main workflow execution endpoint
-app.post('/run-workflow', async (req, res) => {
+// Main workflow execution endpoint with validation and caching
+app.post('/run-workflow',
+  validateWithJoi(workflowSchema),
+  async (req, res) => {
   try {
     const { nodes, edges, inputs, llmConfig } = req.body;
 
-    console.log('Received workflow execution request');
-    console.log('Nodes:', nodes?.length || 0);
-    console.log('Input keys:', Object.keys(inputs || {}));
+    logger.info('Workflow execution started', {
+      numNodes: nodes?.length || 0,
+      numEdges: edges?.length || 0,
+      inputKeys: Object.keys(inputs || {})
+    });
 
     // Validate inputs
     if (!nodes || !Array.isArray(nodes)) {
@@ -143,26 +245,46 @@ app.post('/run-workflow', async (req, res) => {
       }
     });
 
-    console.log('System prompt:', systemPrompt.substring(0, 100) + '...');
-    console.log('User prompt:', userPrompt.substring(0, 100) + '...');
+    logger.debug('Prompt prepared', {
+      systemPromptLength: systemPrompt.length,
+      userPromptLength: userPrompt.length
+    });
 
     // Get API key (from user or environment)
     const apiKey = llmConfig?.apiKey || process.env.GOOGLE_API_KEY;
 
     if (!apiKey) {
+      logger.error('API key missing');
       throw new Error('No API key provided. Please set GOOGLE_API_KEY in .env file or provide a personal API key.');
     }
 
-    // Call Google Gemini API
-    console.log('Calling Gemini API with model:', llmConfig?.model || 'gemini-2.0-flash-exp');
-    const geminiResponse = await callGeminiAPI({
+    // Check cache first (excluding API key from cache key for security)
+    const cacheKey = getCacheKey({
       model: llmConfig?.model || 'gemini-2.0-flash-exp',
       system: systemPrompt,
-      prompt: userPrompt,
-      apiKey: apiKey
+      prompt: userPrompt
     });
 
-    console.log('Gemini API response received, length:', geminiResponse.length);
+    let geminiResponse = getFromCache(cacheKey);
+    
+    if (geminiResponse) {
+      logger.info('Cache hit for workflow execution');
+    } else {
+      // Call Google Gemini API
+      const model = llmConfig?.model || 'gemini-2.0-flash-exp';
+      logger.info('Calling Gemini API', { model });
+      
+      geminiResponse = await callGeminiAPI({
+        model,
+        system: systemPrompt,
+        prompt: userPrompt,
+        apiKey: apiKey
+      });
+
+      // Cache the response
+      setCache(cacheKey, geminiResponse);
+      logger.info('Gemini API response received', { responseLength: geminiResponse.length });
+    }
 
     // Prepare outputs
     const outputs = {};
@@ -180,17 +302,37 @@ app.post('/run-workflow', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Workflow execution error:', error);
-    res.status(500).json({
+    logger.error('Workflow execution error', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Determine appropriate status code
+    const statusCode = error.message.includes('API key') ? 401 :
+                       error.message.includes('Validation') ? 400 :
+                       error.message.includes('Gemini API') ? 502 :
+                       500;
+    
+    res.status(statusCode).json({
       error: error.message,
       success: false
     });
   }
 });
 
-// Function to call Google Gemini API
-async function callGeminiAPI({ model, system, prompt, apiKey }) {
+/**
+ * Call Google Gemini API with retry logic
+ * @param {Object} params - API call parameters
+ * @param {string} params.model - Gemini model name
+ * @param {string} params.system - System prompt
+ * @param {string} params.prompt - User prompt
+ * @param {string} params.apiKey - Google API key
+ * @param {number} params.retries - Number of retries (default: 2)
+ * @returns {Promise<string>} - Generated text response
+ */
+async function callGeminiAPI({ model, system, prompt, apiKey, retries = 2 }) {
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const startTime = Date.now();
 
   try {
     const response = await fetch(API_URL, {
@@ -218,8 +360,17 @@ async function callGeminiAPI({ model, system, prompt, apiKey }) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || response.statusText;
+      
+      // Retry on rate limit or temporary errors
+      if (retries > 0 && (response.status === 429 || response.status >= 500)) {
+        logger.warn('Gemini API error, retrying', { status: response.status, retriesLeft: retries });
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return callGeminiAPI({ model, system, prompt, apiKey, retries: retries - 1 });
+      }
+      
+      throw new Error(`Gemini API error: ${errorMessage}`);
     }
 
     const data = await response.json();
@@ -235,12 +386,23 @@ async function callGeminiAPI({ model, system, prompt, apiKey }) {
     throw new Error('No response generated from Gemini API');
 
   } catch (error) {
-    console.error('Gemini API call failed:', error);
+    const duration = Date.now() - startTime;
+    logger.logApiCall('Google Gemini', model, duration, false);
     throw error;
+  } finally {
+    const duration = Date.now() - startTime;
+    if (duration > 0) {
+      logger.logApiCall('Google Gemini', model, duration, true);
+    }
   }
 }
 
-// Helper function to check if graph is a DAG
+/**
+ * Check if the workflow graph is a Directed Acyclic Graph (DAG)
+ * @param {Array} nodes - Array of workflow nodes
+ * @param {Array} edges - Array of workflow edges
+ * @returns {boolean} - True if graph is a DAG
+ */
 function checkIfDAG(nodes, edges) {
   // Build adjacency list
   const adj = {};
@@ -284,10 +446,16 @@ function checkIfDAG(nodes, edges) {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
+  logger.error('Unhandled error', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+  
+  res.status(err.status || 500).json({
     error: 'Internal server error',
-    message: err.message,
+    message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message,
     success: false
   });
 });
@@ -301,15 +469,32 @@ app.use((req, res) => {
   });
 });
 
+// Graceful shutdown handler
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
+
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  logger.info('Server started', {
+    port: PORT,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    hasGoogleApiKey: !!process.env.GOOGLE_API_KEY
+  });
+  
+  console.log(`\n🚀 WhiteWhale AI Server Running`);
   console.log(`📡 API Endpoints:`);
   console.log(`   - POST http://localhost:${PORT}/run-workflow`);
   console.log(`   - POST http://localhost:${PORT}/pipelines/parse`);
   console.log(`   - GET  http://localhost:${PORT}/health`);
   console.log(`   - GET  http://localhost:${PORT}/test`);
-  console.log(`🔐 Google API Key: ${process.env.GOOGLE_API_KEY ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`🔐 Google API Key: ${process.env.GOOGLE_API_KEY ? '✅ Configured' : '⚠️  Not configured (users must provide their own)'}`);
+  console.log(`🛡️  Security: Rate limiting enabled`);
+  console.log(`💾 Cache: In-memory caching enabled (${CACHE_TTL / 1000}s TTL)\n`);
 });
 
 module.exports = app;

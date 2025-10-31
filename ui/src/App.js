@@ -4,13 +4,18 @@ import {PipelineUI} from "./utils/uiToolkit";
 import {SubmitButton} from "./utils/apiSubmit";
 import {Tutorial} from "./components/shared/Tutorial";
 import {ThemeToggle} from "./components/shared/ThemeToggles";
+import ErrorBoundary from "./components/shared/ErrorBoundary";
 import {ToastContainer} from "react-toastify";
+import {useKeyboardShortcuts} from "./state/store";
 import "react-toastify/dist/ReactToastify.css";
 import "./styles/tutorial.css";
 
 function App() {
   const [theme, setTheme] = useState("dark");
   const [isFirstVisit, setIsFirstVisit] = useState(true);
+  
+  // Enable keyboard shortcuts (undo/redo)
+  useKeyboardShortcuts();
 
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedBefore");
@@ -38,28 +43,30 @@ function App() {
   };
 
   return (
-    <div className={`app-container ${theme}`}>
-      <ThemeToggle theme={theme} onToggle={toggleTheme} />
-      <PipelineToolbar />
-      <PipelineUI />
-      <SubmitButton />
-      <Tutorial
-        isFirstVisit={isFirstVisit}
-        onComplete={handleTutorialComplete}
-      />
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme={theme}
-      />
-    </div>
+    <ErrorBoundary>
+      <div className={`app-container ${theme}`}>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        <PipelineToolbar />
+        <PipelineUI />
+        <SubmitButton />
+        <Tutorial
+          isFirstVisit={isFirstVisit}
+          onComplete={handleTutorialComplete}
+        />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme={theme}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
 
