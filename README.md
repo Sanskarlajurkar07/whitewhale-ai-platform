@@ -12,7 +12,7 @@ A powerful AI-powered workflow management platform built with React frontend and
 
 ## 📁 Project Structure
 
-```
+\`\`\`
 WhiteWhaleAi 4.0/
 ├── backend/          # Node.js Express API server
 │   ├── server.js     # Main server file
@@ -24,7 +24,7 @@ WhiteWhaleAi 4.0/
 │   ├── package.json # Frontend dependencies
 │   └── .env         # Frontend environment variables
 └── DEPLOYMENT_GUIDE.md  # Detailed deployment instructions
-```
+\`\`\`
 
 ## 🛠️ Local Development
 
@@ -34,19 +34,19 @@ WhiteWhaleAi 4.0/
 - Google API key for Gemini
 
 ### Backend Setup
-```bash
+\`\`\`bash
 cd backend
 npm install
 # Set up your .env file with GOOGLE_API_KEY
 npm start
-```
+\`\`\`
 
 ### Frontend Setup
-```bash
+\`\`\`bash
 cd ui
 npm install
 npm start
-```
+\`\`\`
 
 ## 🌐 Deployment
 
@@ -59,16 +59,16 @@ See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for detailed deployment instruc
 ## 🔧 Environment Variables
 
 ### Backend
-```bash
+\`\`\`bash
 PORT=8000
 GOOGLE_API_KEY=your_google_api_key_here
 NODE_ENV=production
-```
+\`\`\`
 
 ### Frontend
-```bash
+\`\`\`bash
 REACT_APP_API_URL=https://your-backend-url.com
-```
+\`\`\`
 
 ## 🏗️ Architecture
 

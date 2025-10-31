@@ -11,35 +11,35 @@ This guide explains how to deploy your frontend and backend applications and ens
 ### 1. Environment Variables Setup
 
 **Frontend (`/ui/.env`):**
-```bash
+\`\`\`bash
 # For development
 REACT_APP_API_URL=http://localhost:8000
-```
+\`\`\`
 
 **Frontend Production (`/ui/.env.production`):**
-```bash
+\`\`\`bash
 # Update with your actual backend URL
 REACT_APP_API_URL=https://your-backend-domain.com
-```
+\`\`\`
 
 ### 2. Update Your Production Environment File
 
 Edit `/ui/.env.production` with your actual backend URL:
 
 **For Render.com backend:**
-```bash
+\`\`\`bash
 REACT_APP_API_URL=https://whitewhaleai-backend-1.onrender.com
-```
+\`\`\`
 
 **For Vercel backend:**
-```bash
+\`\`\`bash
 REACT_APP_API_URL=https://your-backend.vercel.app
-```
+\`\`\`
 
 **For Railway backend:**
-```bash
+\`\`\`bash
 REACT_APP_API_URL=https://your-backend.up.railway.app
-```
+\`\`\`
 
 ## 🚀 Deployment Options
 
@@ -49,11 +49,11 @@ REACT_APP_API_URL=https://your-backend.up.railway.app
 1. Push your backend to GitHub
 2. Connect to Vercel
 3. Set environment variables in Vercel dashboard:
-   ```
+   \`\`\`
    PORT=8000
    GOOGLE_API_KEY=your_api_key_here
    NODE_ENV=production
-   ```
+   \`\`\`
 
 #### Frontend Deployment:
 1. Update `/ui/.env.production` with your Vercel backend URL
@@ -66,19 +66,19 @@ REACT_APP_API_URL=https://your-backend.up.railway.app
 #### Backend (Render):
 1. Connect your GitHub repo to Render
 2. Set environment variables:
-   ```
+   \`\`\`
    PORT=8000
    GOOGLE_API_KEY=your_api_key_here
    NODE_ENV=production
-   ```
+   \`\`\`
 3. Set build command: `npm install`
 4. Set start command: `npm start`
 
 #### Frontend (Vercel):
 1. Update `/ui/.env.production`:
-   ```bash
+   \`\`\`bash
    REACT_APP_API_URL=https://your-render-backend.onrender.com
-   ```
+   \`\`\`
 2. Deploy to Vercel
 
 ### Option 3: Both on Railway
@@ -96,28 +96,28 @@ REACT_APP_API_URL=https://your-backend.up.railway.app
 
 ### 1. Test Backend Endpoints
 
-```bash
+\`\`\`bash
 # Health check
 curl https://your-backend-url/health
 
 # CORS test
 curl https://your-backend-url/test
-```
+\`\`\`
 
 ### 2. Check Frontend Console
 
 Open browser dev tools and look for:
-```javascript
+\`\`\`javascript
 Using API base URL: https://your-backend-url
 Environment: production
-```
+\`\`\`
 
 ### 3. Test API Call
 
 In your frontend, the workflow execution should show:
-```
+\`\`\`
 Attempt 1/3: Calling https://your-backend-url/run-workflow
-```
+\`\`\`
 
 ## 🛠️ Troubleshooting
 
@@ -141,32 +141,32 @@ If requests timeout:
 ## 📝 Environment Variables Reference
 
 ### Backend Required Variables:
-```bash
+\`\`\`bash
 PORT=8000
 GOOGLE_API_KEY=your_google_api_key
 NODE_ENV=production
-```
+\`\`\`
 
 ### Frontend Required Variables:
-```bash
+\`\`\`bash
 REACT_APP_API_URL=https://your-backend-domain.com
-```
+\`\`\`
 
 ## 🔄 Update Process
 
 When you need to change backend URL:
 
 1. **Update frontend environment:**
-   ```bash
+   \`\`\`bash
    # Edit /ui/.env.production
    REACT_APP_API_URL=https://new-backend-url.com
-   ```
+   \`\`\`
 
 2. **Update backend CORS (if needed):**
-   ```javascript
+   \`\`\`javascript
    // Add your new frontend domain to server.js corsOptions
    'https://your-new-frontend-domain.com'
-   ```
+   \`\`\`
 
 3. **Rebuild and redeploy both applications**
 
